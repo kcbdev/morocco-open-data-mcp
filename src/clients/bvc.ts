@@ -210,6 +210,10 @@ export class BVCClient {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
+      httpsAgent: new (await import("https")).Agent({
+        rejectUnauthorized: false,
+        keepAlive: true,
+      }),
     });
 
     this.client.interceptors.response.use(
@@ -224,6 +228,19 @@ export class BVCClient {
 
       if (axiosError.code === "ECONNABORTED") {
         throw new TimeoutError("BVC request timeout", "BVC");
+      }
+
+      if (
+        axiosError.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
+        axiosError.code === "CERT_HAS_EXPIRED" ||
+        axiosError.code === "SELF_SIGNED_CERT"
+      ) {
+        console.error(`[BVC] SSL certificate error: ${axiosError.code}`);
+        throw new DataSourceError(
+          `BVC SSL certificate error: ${axiosError.code}. The Casablanca Stock Exchange API may have certificate issues.`,
+          "BVC",
+          502,
+        );
       }
 
       if (axiosError.response?.status === 404) {
