@@ -1,0 +1,54 @@
+{
+  "mcpServers": {
+    "morocco-open-data": {
+      "command": "node",
+      "args": ["/home/kcb/Work/LABS/MoroccoOpenData MCP/dist/index.js"],
+      "env": {
+        "BAM_KEY_CHANGES": "",
+        "BAM_KEY_OBLIGATIONS": "",
+        "BAM_KEY_TBILLS": "",
+        "WORLD_BANK_API_KEY": "",
+        "ACLED_API_KEY": "",
+        "OPENWEATHER_API_KEY": "",
+        "ANTHROPIC_API_KEY": "",
+        "CACHE_TTL_DEFAULT": "3600",
+        "CACHE_TTL_SHORT": "300",
+        "CACHE_TTL_LONG": "86400",
+        "RATE_LIMIT_DEFAULT": "60",
+        "RATE_LIMIT_STRICT": "10",
+        "NODE_ENV": "development"
+      },
+      "disabled": false,
+      "alwaysAllow": [
+        "search_datasets",
+        "get_dataset",
+        "list_organizations",
+        "search_by_tag",
+        "get_exchange_rates",
+        "get_interest_rates",
+        "get_inflation_data",
+        "get_money_supply",
+        "get_treasury_bills",
+        "get_world_bank_indicators",
+        "get_morocco_economic_summary",
+        "get_stock_quotes",
+        "get_market_summary",
+        "get_market_indices",
+        "get_bond_quotes",
+        "get_company_info",
+        "get_morocco_regions",
+        "get_city_coordinates",
+        "search_cities",
+        "get_prayer_times",
+        "get_weekly_prayer_times",
+        "get_next_prayer",
+        "list_prayer_cities",
+        "get_humanitarian_datasets",
+        "get_climate_data",
+        "get_environmental_indicators",
+        "search_knowledge_graph",
+        "get_data_sources"
+      ]
+    }
+  }
+}

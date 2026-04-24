@@ -1,0 +1,138 @@
+# Morocco Open Data MCP Server - Coolify Docker Compose Configuration
+# Optimized for deployment on morocco-od-mcp.kcb.ma
+
+version: '3.8'
+
+services:
+  morocco-open-data-mcp:
+    image: ${IMAGE:-morocco-open-data-mcp:latest}
+    container_name: morocco-open-data-mcp
+    restart: unless-stopped
+
+    # Build configuration (used when building from source)
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      args:
+        - NODE_ENV=production
+
+    # Environment variables
+    environment:
+      # Server Configuration
+      - NODE_ENV=production
+      - MCP_PORT=3000
+      - MCP_HOST=0.0.0.0
+
+      # Cache Configuration
+      - CACHE_TTL_DEFAULT=3600
+      - CACHE_TTL_SHORT=300
+      - CACHE_TTL_LONG=86400
+
+      # Rate Limiting
+      - RATE_LIMIT_DEFAULT=60
+      - RATE_LIMIT_STRICT=10
+
+      # API Keys (set in Coolify environment variables)
+      - BAM_KEY_CHANGES=${BAM_KEY_CHANGES:-}
+      - BAM_KEY_OBLIGATIONS=${BAM_KEY_OBLIGATIONS:-}
+      - BAM_KEY_TBILLS=${BAM_KEY_TBILLS:-}
+      - WORLD_BANK_API_KEY=${WORLD_BANK_API_KEY:-}
+      - ACLED_API_KEY=${ACLED_API_KEY:-}
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+
+    # Expose port for Coolify/Traefik
+    expose:
+      - "3000"
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('MCP server healthy')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Connect to Coolify network
+    networks:
+      - coolify
+
+    # Labels for Traefik (Coolify's reverse proxy)
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.morocco-open-data-mcp.rule=Host(`morocco-od-mcp.kcb.ma`)"
+      - "traefik.http.routers.morocco-open-data-mcp.entrypoints=websecure"
+      - "traefik.http.routers.morocco-open-data-mcp.tls=true"
+      - "traefik.http.routers.morocco-open-data-mcp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.morocco-open-data-mcp.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.morocco-open-data-mcp.headers.stsseconds=31536000"
+      - "traefik.http.middlewares.morocco-open-data-mcp.headers.sslredirect=true"
+      - "traefik.http.middlewares.morocco-open-data-mcp.headers.sslforcehost=true"
+
+    # Logging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Standard input/output for MCP
+    stdin_open: true
+    tty: true
+
+# Networks
+networks:
+  coolify:
+    external: true
+    name: coolify
+
+# Volumes (optional - for persistent data if needed)
+volumes:
+  morocco-mcp-cache:
+    name: morocco-mcp-cache
+
+# ============================
+# Coolify Deployment Notes
+# ============================
+#
+# This docker-compose file is optimized for Coolify deployment.
+#
+# Deployment Steps:
+# 1. Upload this file to Coolify as "docker-compose.coolify.yml"
+# 2. Set the domain to: morocco-od-mcp.kcb.ma
+# 3. Configure environment variables in Coolify UI:
+#    - BAM_KEY_CHANGES (required for exchange rates)
+#    - BAM_KEY_OBLIGATIONS (required for obligations data)
+#    - BAM_KEY_TBILLS (required for treasury bills)
+#    - WORLD_BANK_API_KEY (optional)
+#    - OPENWEATHER_API_KEY (optional)
+#    - ACLED_API_KEY (optional)
+#
+# 4. Build command: npm run build
+# 5. Start command: node dist/index.js
+# 6. Coolify will automatically:
+#    - Build the Docker image
+#    - Deploy to the coolify network
+#    - Configure Traefik for SSL/TLS
+#    - Set up health checks
+#    - Manage auto-restarts
+#
+# Troubleshooting:
+# - View logs in Coolify UI or: docker logs -f morocco-open-data-mcp
+# - Check health: docker exec morocco-open-data-mcp node -e "console.log('healthy')"
+# - Restart: docker restart morocco-open-data-mcp
+#
+# Domain: morocco-od-mcp.kcb.ma
+# Port: 3000 (internal)
+# Protocol: MCP (stdio via Coolify integration)

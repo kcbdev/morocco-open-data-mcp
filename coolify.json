@@ -1,0 +1,150 @@
+{
+  "name": "morocco-open-data-mcp",
+  "domain": "morocco-od-mcp.kcb.ma",
+  "description": "Morocco Open Data MCP Server - Providing unified access to Moroccan government data sources, financial markets, GIS, and more",
+  "repository": {
+    "provider": "local",
+    "url": "file:///home/kcb/Work/LABS/MoroccoOpenData%20MCP",
+    "branch": "main"
+  },
+  "build": {
+    "type": "dockerfile",
+    "dockerfile": "Dockerfile",
+    "build_args": [],
+    "publish_port": "3000/tcp"
+  },
+  "deploy": {
+    "type": "docker-compose",
+    "docker_compose_location": "/docker-compose.coolify.yml",
+    "docker_compose_prune": true,
+    "docker_compose_custom_start_command": null,
+    "docker_compose_custom_build_command": null
+  },
+  "docker_compose": "{\n  \"services\": {\n    \"morocco-open-data-mcp\": {\n      \"image\": \"ghcr.io/kcb/morocco-open-data-mcp:latest\",\n      \"container_name\": \"morocco-open-data-mcp\",\n      \"restart\": \"unless-stopped\",\n      \"environment\": {\n        \"NODE_ENV\": \"production\",\n        \"MCP_PORT\": \"3000\",\n        \"MCP_HOST\": \"0.0.0.0\",\n        \"CACHE_TTL_DEFAULT\": \"3600\",\n        \"CACHE_TTL_SHORT\": \"300\",\n        \"CACHE_TTL_LONG\": \"86400\",\n        \"RATE_LIMIT_DEFAULT\": \"60\",\n        \"RATE_LIMIT_STRICT\": \"10\"\n      },\n      \"healthcheck\": {\n        \"test\": [\"CMD\", \"node\", \"-e\", \"console.log('MCP server healthy')\"],\n        \"interval\": \"30s\",\n        \"timeout\": \"10s\",\n        \"retries\": 3,\n        \"start_period\": \"10s\"\n      },\n      \"networks\": [\"coolify\"],\n      \"labels\": [\n        \"traefik.enable=true\",\n        \"traefik.http.routers.morocco-open-data-mcp.rule=Host(`morocco-od-mcp.kcb.ma`)\",\n        \"traefik.http.routers.morocco-open-data-mcp.entrypoints=websecure\",\n        \"traefik.http.routers.morocco-open-data-mcp.tls=true\",\n        \"traefik.http.routers.morocco-open-data-mcp.tls.certresolver=letsencrypt\",\n        \"traefik.http.services.morocco-open-data-mcp.loadbalancer.server.port=3000\"\n      ]\n    }\n  },\n  \"networks\": {\n    \"coolify\": {\n      \"external\": true\n    }\n  }\n}",
+  "environment_variables": [
+    {
+      "key": "NODE_ENV",
+      "value": "production",
+      "is_build_time": false,
+      "is_preview": false
+    },
+    {
+      "key": "MCP_PORT",
+      "value": "3000",
+      "is_build_time": false,
+      "is_preview": false
+    },
+    {
+      "key": "MCP_HOST",
+      "value": "0.0.0.0",
+      "is_build_time": false,
+      "is_preview": false
+    },
+    {
+      "key": "CACHE_TTL_DEFAULT",
+      "value": "3600",
+      "is_build_time": false,
+      "is_preview": false
+    },
+    {
+      "key": "CACHE_TTL_SHORT",
+      "value": "300",
+      "is_build_time": false,
+      "is_preview": false
+    },
+    {
+      "key": "CACHE_TTL_LONG",
+      "value": "86400",
+      "is_build_time": false,
+      "is_preview": false
+    },
+    {
+      "key": "RATE_LIMIT_DEFAULT",
+      "value": "60",
+      "is_build_time": false,
+      "is_preview": false
+    },
+    {
+      "key": "RATE_LIMIT_STRICT",
+      "value": "10",
+      "is_build_time": false,
+      "is_preview": false
+    },
+    {
+      "key": "BAM_KEY_CHANGES",
+      "value": "",
+      "is_build_time": false,
+      "is_preview": false,
+      "is_shared": false
+    },
+    {
+      "key": "BAM_KEY_OBLIGATIONS",
+      "value": "",
+      "is_build_time": false,
+      "is_preview": false,
+      "is_shared": false
+    },
+    {
+      "key": "BAM_KEY_TBILLS",
+      "value": "",
+      "is_build_time": false,
+      "is_preview": false,
+      "is_shared": false
+    },
+    {
+      "key": "WORLD_BANK_API_KEY",
+      "value": "",
+      "is_build_time": false,
+      "is_preview": false,
+      "is_shared": false
+    },
+    {
+      "key": "OPENWEATHER_API_KEY",
+      "value": "",
+      "is_build_time": false,
+      "is_preview": false,
+      "is_shared": false
+    }
+  ],
+  "health_check": {
+    "path": "/health",
+    "port": 3000,
+    "host": "0.0.0.0",
+    "method": "GET",
+    "status_codes": [200],
+    "interval": 30,
+    "timeout": 10,
+    "retries": 3,
+    "start_period": 10
+  },
+  "resource_limits": {
+    "cpu": "1.0",
+    "memory": "512M",
+    "cpu_reservation": "0.25",
+    "memory_reservation": "128M"
+  },
+  "storage": [],
+  "labels": [
+    "traefik.enable=true",
+    "traefik.http.routers.morocco-open-data-mcp.rule=Host(`morocco-od-mcp.kcb.ma`)",
+    "traefik.http.routers.morocco-open-data-mcp.entrypoints=websecure",
+    "traefik.http.routers.morocco-open-data-mcp.tls=true",
+    "traefik.http.routers.morocco-open-data-mcp.tls.certresolver=letsencrypt",
+    "traefik.http.services.morocco-open-data-mcp.loadbalancer.server.port=3000"
+  ],
+  "networks": ["coolify"],
+  "ports": [],
+  "custom_dockerfile_path": "Dockerfile",
+  "install_command": "npm ci --only=production",
+  "build_command": "npm run build",
+  "start_command": "node dist/index.js",
+  "watch_paths": [
+    "src/**/*",
+    "package.json",
+    "tsconfig.json"
+  ],
+  "publish_directory": "dist",
+  "is_static": false,
+  "is_build_server": false,
+  "preview_url_template": "{{pr_id}}.morocco-od-mcp.kcb.ma"
+}
