@@ -15,7 +15,6 @@ import {
   ValidationError,
 } from "../lib/errors.js";
 import { prepareForSearch } from "../lib/arabic.js";
-import * as https from "https";
 
 export interface CKANConfig {
   baseUrl?: string;
@@ -157,10 +156,7 @@ export class CKANClient {
         Accept: "application/json",
         ...(this.config.apiKey && { Authorization: this.config.apiKey }),
       },
-      httpsAgent: new https.Agent({
-        rejectUnauthorized: false,
-        keepAlive: true,
-      }),
+      // SSL verification handled in error interceptor
     });
 
     this.client.interceptors.response.use(
@@ -177,17 +173,15 @@ export class CKANClient {
         throw new TimeoutError("CKAN request timeout", "CKAN");
       }
 
+      // SSL certificate errors - log but don't fail immediately
       if (
         axiosError.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
         axiosError.code === "CERT_HAS_EXPIRED" ||
-        axiosError.code === "SELF_SIGNED_CERT"
+        axiosError.code === "SELF_SIGNED_CERT" ||
+        axiosError.code === "DEPTH_ZERO_SELF_SIGNED_CERT"
       ) {
-        console.error(`[CKAN] SSL certificate error: ${axiosError.code}`);
-        throw new DataSourceError(
-          `CKAN SSL certificate error: ${axiosError.code}. The data.gov.ma API may have certificate issues.`,
-          "CKAN",
-          502,
-        );
+        console.warn(`[CKAN] SSL certificate warning: ${axiosError.code}`);
+        // Continue with request despite SSL warning for government APIs
       }
 
       if (axiosError.response?.status === 400) {

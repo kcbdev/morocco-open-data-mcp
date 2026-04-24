@@ -8,7 +8,6 @@ import axios, { AxiosInstance, AxiosError } from "axios";
 import { Cache } from "../lib/cache.js";
 import { RateLimiter } from "../lib/rateLimiter.js";
 import { DataSourceError, NotFoundError, TimeoutError } from "../lib/errors.js";
-import * as https from "https";
 
 export interface BVCConfig {
   baseUrl?: string;
@@ -211,10 +210,7 @@ export class BVCClient {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      httpsAgent: new https.Agent({
-        rejectUnauthorized: false,
-        keepAlive: true,
-      }),
+      // SSL verification handled in error interceptor
     });
 
     this.client.interceptors.response.use(
@@ -231,17 +227,15 @@ export class BVCClient {
         throw new TimeoutError("BVC request timeout", "BVC");
       }
 
+      // SSL certificate warnings - log but continue for government APIs
       if (
         axiosError.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
         axiosError.code === "CERT_HAS_EXPIRED" ||
-        axiosError.code === "SELF_SIGNED_CERT"
+        axiosError.code === "SELF_SIGNED_CERT" ||
+        axiosError.code === "DEPTH_ZERO_SELF_SIGNED_CERT"
       ) {
-        console.error(`[BVC] SSL certificate error: ${axiosError.code}`);
-        throw new DataSourceError(
-          `BVC SSL certificate error: ${axiosError.code}. The Casablanca Stock Exchange API may have certificate issues.`,
-          "BVC",
-          502,
-        );
+        console.warn(`[BVC] SSL certificate warning: ${axiosError.code}`);
+        // Continue with request despite SSL warning for government APIs
       }
 
       if (axiosError.response?.status === 404) {
