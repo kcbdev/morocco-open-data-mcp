@@ -2,7 +2,9 @@
  * Morocco Open Data MCP Server
  *
  * A Model Context Protocol (MCP) server providing unified access to Moroccan
- * government data sources, financial markets, GIS, humanitarian data, and more.
+ * government data sources, financial markets, GIS, and more.
+ *
+ * Supports both stdio and HTTP SSE transport.
  *
  * @version 1.0.0
  * @author Morocco Open Data Initiative
@@ -11,11 +13,14 @@
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   Tool,
 } from "@modelcontextprotocol/sdk/types.js";
+import { createServer, IncomingMessage, ServerResponse } from "http";
+import { URL } from "url";
 
 // Import clients
 import { CKANClient } from "./clients/ckan.js";
@@ -35,6 +40,14 @@ const SERVER_NAME = "morocco-open-data";
 const SERVER_VERSION = "1.0.0";
 const SERVER_DESCRIPTION =
   "MCP server for Morocco Open Data - Providing unified access to Moroccan government data sources, financial markets, GIS, and more";
+
+// HTTP Server configuration
+const HTTP_PORT = parseInt(process.env.MCP_PORT || "3000");
+const HTTP_HOST = process.env.MCP_HOST || "0.0.0.0";
+const TRANSPORT_MODE = process.env.MCP_TRANSPORT || "auto"; // "stdio", "http", or "auto"
+
+// Store active SSE connections
+const sseConnections = new Map<string, SSEServerTransport>();
 
 // Initialize clients with shared cache and rate limiter
 const cache = defaultCache;
@@ -786,15 +799,163 @@ async function callTool(
   }
 }
 
-// Start server
+// HTTP Server for SSE transport
+async function startHttpServer() {
+  const httpServer = createServer(
+    async (req: IncomingMessage, res: ServerResponse) => {
+      const url = new URL(req.url || "/", `http://${req.headers.host}`);
+
+      // CORS headers for all responses
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+      if (req.method === "OPTIONS") {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+
+      // SSE endpoint for MCP clients
+      if (url.pathname === "/sse" && req.method === "GET") {
+        console.error(
+          `[HTTP] New SSE connection from ${req.socket.remoteAddress}`,
+        );
+        const transport = new SSEServerTransport("/message", res);
+        sseConnections.set(transport.sessionId, transport);
+
+        transport.onclose = () => {
+          console.error(`[HTTP] SSE connection closed: ${transport.sessionId}`);
+          sseConnections.delete(transport.sessionId);
+        };
+
+        await server.connect(transport);
+        return;
+      }
+
+      // Message endpoint for MCP communication
+      if (url.pathname === "/message" && req.method === "POST") {
+        const sessionId = url.searchParams.get("sessionId");
+        if (!sessionId) {
+          res.writeHead(400).end("sessionId required");
+          return;
+        }
+
+        const transport = sseConnections.get(sessionId);
+        if (!transport) {
+          res.writeHead(404).end("Session not found");
+          return;
+        }
+
+        await transport.handlePostMessage(req, res);
+        return;
+      }
+
+      // Health check endpoint
+      if (url.pathname === "/health" || url.pathname === "/") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            status: "healthy",
+            server: SERVER_NAME,
+            version: SERVER_VERSION,
+            tools: tools.length,
+            timestamp: new Date().toISOString(),
+          }),
+        );
+        return;
+      }
+
+      // MCP endpoint for Streamable HTTP (alternative to SSE)
+      if (url.pathname === "/mcp" && req.method === "POST") {
+        console.error(`[HTTP] MCP request from ${req.socket.remoteAddress}`);
+        // For streamable HTTP, we'd handle the request here
+        res
+          .writeHead(501)
+          .end("Streamable HTTP not yet implemented - use /sse endpoint");
+        return;
+      }
+
+      // 404 for everything else
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: "Not found",
+          endpoints: {
+            sse: "GET /sse - SSE transport for MCP clients",
+            message: "POST /message?sessionId=xxx - Message endpoint",
+            health: "GET /health - Health check",
+            mcp: "POST /mcp - Streamable HTTP (coming soon)",
+          },
+        }),
+      );
+    },
+  );
+
+  return new Promise<void>((resolve, reject) => {
+    httpServer.listen(HTTP_PORT, HTTP_HOST, () => {
+      console.error(
+        `[HTTP] MCP Server listening on http://${HTTP_HOST}:${HTTP_PORT}`,
+      );
+      console.error(
+        `[HTTP] SSE endpoint: http://${HTTP_HOST}:${HTTP_PORT}/sse`,
+      );
+      console.error(
+        `[HTTP] Health check: http://${HTTP_HOST}:${HTTP_PORT}/health`,
+      );
+      console.error(
+        `[HTTP] MCP endpoint: http://${HTTP_HOST}:${HTTP_PORT}/mcp`,
+      );
+      resolve();
+    });
+    httpServer.on("error", reject);
+  });
+}
+
+// Start stdio server (for Claude Desktop integration)
+async function startStdioServer() {
+  console.error(`[stdio] Starting MCP server with stdio transport`);
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error(`[stdio] Server connected and ready`);
+}
+
+// Main entry point
 async function main() {
-  console.error(`[MCP] Starting ${SERVER_NAME} v${SERVER_VERSION}`);
-  console.error(`[MCP] Description: ${SERVER_DESCRIPTION}`);
+  console.error(
+    `╔═══════════════════════════════════════════════════════════╗`,
+  );
+  console.error(`║   ${SERVER_NAME.padEnd(51)} ║`);
+  console.error(`║   v${SERVER_VERSION.padEnd(48)} ║`);
+  console.error(
+    `╚═══════════════════════════════════════════════════════════╝`,
+  );
+  console.error(`[MCP] ${SERVER_DESCRIPTION}`);
+  console.error(``);
 
   try {
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    console.error(`[MCP] Server connected and ready`);
+    // Auto-detect transport mode based on environment
+    let useHttp = false;
+
+    if (TRANSPORT_MODE === "http") {
+      useHttp = true;
+    } else if (TRANSPORT_MODE === "stdio") {
+      useHttp = false;
+    } else {
+      // Auto mode: use HTTP if MCP_PORT is set and we're not in a TTY
+      useHttp = !!process.env.MCP_PORT && !process.stdout.isTTY;
+    }
+
+    if (useHttp) {
+      await startHttpServer();
+      // Keep the process alive for HTTP server
+      console.error(
+        `[MCP] Server running in HTTP mode - waiting for connections...`,
+      );
+    } else {
+      await startStdioServer();
+      // Stdio mode - process will stay alive while connected
+    }
   } catch (error) {
     console.error(`[MCP] Fatal error:`, error);
     process.exit(1);
