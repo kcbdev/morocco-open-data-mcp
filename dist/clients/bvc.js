@@ -24,6 +24,7 @@ export class BVCClient {
         };
         this.cache = config.cache;
         this.rateLimiter = config.rateLimiter;
+        const https = require("https");
         this.client = axios.create({
             baseURL: this.config.baseUrl,
             timeout: this.config.timeout,
@@ -31,6 +32,10 @@ export class BVCClient {
                 "Content-Type": "application/json",
                 Accept: "application/json",
             },
+            httpsAgent: new https.Agent({
+                rejectUnauthorized: false,
+                keepAlive: true,
+            }),
         });
         this.client.interceptors.response.use((response) => response, (error) => this.handleError(error));
     }
@@ -39,6 +44,12 @@ export class BVCClient {
             const axiosError = error;
             if (axiosError.code === "ECONNABORTED") {
                 throw new TimeoutError("BVC request timeout", "BVC");
+            }
+            if (axiosError.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
+                axiosError.code === "CERT_HAS_EXPIRED" ||
+                axiosError.code === "SELF_SIGNED_CERT") {
+                console.error(`[BVC] SSL certificate error: ${axiosError.code}`);
+                throw new DataSourceError(`BVC SSL certificate error: ${axiosError.code}. The Casablanca Stock Exchange API may have certificate issues.`, "BVC", 502);
             }
             if (axiosError.response?.status === 404) {
                 throw new NotFoundError("Resource not found on BVC", "BVC");

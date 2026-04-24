@@ -4,7 +4,7 @@
  * Documentation: https://data.gov.ma/data/api/3
  */
 import axios from "axios";
-import { DataSourceError, NotFoundError, TimeoutError, AuthenticationError, } from "../lib/errors.js";
+import { DataSourceError, NotFoundError, TimeoutError, AuthenticationError, ValidationError, } from "../lib/errors.js";
 import { prepareForSearch } from "../lib/arabic.js";
 export class CKANClient {
     client;
@@ -15,7 +15,7 @@ export class CKANClient {
         this.config = {
             baseUrl: config.baseUrl || "https://data.gov.ma/data/api/3",
             apiKey: config.apiKey,
-            timeout: config.timeout || 30000,
+            timeout: config.timeout || 60000,
         };
         this.cache = config.cache;
         this.rateLimiter = config.rateLimiter;
@@ -24,8 +24,13 @@ export class CKANClient {
             timeout: this.config.timeout,
             headers: {
                 "Content-Type": "application/json",
+                Accept: "application/json",
                 ...(this.config.apiKey && { Authorization: this.config.apiKey }),
             },
+            httpsAgent: new (require("https").Agent)({
+                rejectUnauthorized: false,
+                keepAlive: true,
+            }),
         });
         this.client.interceptors.response.use((response) => response, (error) => this.handleError(error));
     }
@@ -35,13 +40,29 @@ export class CKANClient {
             if (axiosError.code === "ECONNABORTED") {
                 throw new TimeoutError("CKAN request timeout", "CKAN");
             }
+            if (axiosError.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
+                axiosError.code === "CERT_HAS_EXPIRED" ||
+                axiosError.code === "SELF_SIGNED_CERT") {
+                console.error(`[CKAN] SSL certificate error: ${axiosError.code}`);
+                throw new DataSourceError(`CKAN SSL certificate error: ${axiosError.code}. The data.gov.ma API may have certificate issues.`, "CKAN", 502);
+            }
+            if (axiosError.response?.status === 400) {
+                console.error(`[CKAN] Bad request: ${axiosError.response.data}`);
+                const errorMsg = axiosError.response?.data
+                    ? String(axiosError.response.data)
+                    : axiosError.message;
+                throw new ValidationError(`CKAN bad request: ${errorMsg}`, "query", axiosError.config?.params);
+            }
             if (axiosError.response?.status === 404) {
                 throw new NotFoundError("Resource not found on CKAN", "CKAN");
             }
             if (axiosError.response?.status === 403) {
                 throw new AuthenticationError("CKAN API key invalid or missing", "CKAN");
             }
-            throw new DataSourceError(`CKAN API error: ${axiosError.message}`, "CKAN", axiosError.response?.status || 502);
+            if (axiosError.response?.status === 503) {
+                throw new DataSourceError("CKAN service temporarily unavailable. The data.gov.ma portal may be down for maintenance.", "CKAN", 503);
+            }
+            throw new DataSourceError(`CKAN API error (${axiosError.response?.status || "unknown"}): ${axiosError.message}`, "CKAN", axiosError.response?.status || 502);
         }
         throw new DataSourceError(error instanceof Error ? error.message : "Unknown CKAN error", "CKAN");
     }
@@ -78,23 +99,31 @@ export class CKANClient {
      */
     async searchPackages(query, options = {}) {
         const normalizedQuery = prepareForSearch(query);
+        // Ensure query is not empty - CKAN requires a query string
+        const searchQuery = normalizedQuery.trim() || "*:*";
         return this.request("package_search", {
-            q: normalizedQuery,
+            q: searchQuery,
             fq: options.fq,
             sort: options.sort || "metadata_modified desc",
-            rows: options.rows || 10,
+            rows: Math.min(options.rows || 10, 100), // CKAN max rows limit
             start: options.start || 0,
             facet: options.facet !== false,
             facet_fields: options.facet_fields || ["organization", "groups", "tags"],
+            include_private: false,
         });
     }
     /**
      * Get a specific package by ID or name
      */
     async getPackage(id, includeResources = true) {
+        // Validate ID - CKAN package IDs are typically UUIDs or slugs
+        if (!id || id.trim().length === 0) {
+            throw new ValidationError("Package ID cannot be empty", "id");
+        }
         return this.request("package_show", {
-            id,
+            id: id.trim(),
             include_datasets: includeResources,
+            include_resources: includeResources,
         });
     }
     /**

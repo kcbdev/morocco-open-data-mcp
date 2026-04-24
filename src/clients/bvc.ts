@@ -203,6 +203,7 @@ export class BVCClient {
     this.cache = config.cache;
     this.rateLimiter = config.rateLimiter;
 
+    const https = require("https");
     this.client = axios.create({
       baseURL: this.config.baseUrl,
       timeout: this.config.timeout,
@@ -210,7 +211,7 @@ export class BVCClient {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      httpsAgent: new (await import("https")).Agent({
+      httpsAgent: new https.Agent({
         rejectUnauthorized: false,
         keepAlive: true,
       }),
