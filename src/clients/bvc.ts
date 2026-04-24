@@ -8,6 +8,7 @@ import axios, { AxiosInstance, AxiosError } from "axios";
 import { Cache } from "../lib/cache.js";
 import { RateLimiter } from "../lib/rateLimiter.js";
 import { DataSourceError, NotFoundError, TimeoutError } from "../lib/errors.js";
+import * as https from "https";
 
 export interface BVCConfig {
   baseUrl?: string;
@@ -203,7 +204,6 @@ export class BVCClient {
     this.cache = config.cache;
     this.rateLimiter = config.rateLimiter;
 
-    const https = require("https");
     this.client = axios.create({
       baseURL: this.config.baseUrl,
       timeout: this.config.timeout,

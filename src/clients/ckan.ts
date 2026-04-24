@@ -15,6 +15,7 @@ import {
   ValidationError,
 } from "../lib/errors.js";
 import { prepareForSearch } from "../lib/arabic.js";
+import * as https from "https";
 
 export interface CKANConfig {
   baseUrl?: string;
@@ -156,7 +157,7 @@ export class CKANClient {
         Accept: "application/json",
         ...(this.config.apiKey && { Authorization: this.config.apiKey }),
       },
-      httpsAgent: new (require("https").Agent)({
+      httpsAgent: new https.Agent({
         rejectUnauthorized: false,
         keepAlive: true,
       }),
