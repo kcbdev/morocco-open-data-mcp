@@ -636,7 +636,6 @@ For commercial licensing inquiries, contact: oss@kcb.ma
 ## 📞 Support
 
 - **Issues:** [GitHub Issues](https://github.com/kcbdev/morocco-open-data-mcp/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/kcbdev/morocco-open-data-mcp/discussions)
 - **Email:** oss@kcb.ma
 
 ## 🙏 Acknowledgments
