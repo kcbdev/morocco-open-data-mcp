@@ -4,19 +4,19 @@ A comprehensive [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)
 
 ## 📋 Table of Contents
 
-- [Features](#features)
-- [Quick Start](#quick-start)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Available Tools](#available-tools)
-- [Usage Examples](#usage-examples)
-- [Data Sources](#data-sources)
-- [Deployment](#deployment)
-- [Development](#development)
-- [API Keys](#api-keys)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
+- [Features](#-features)
+- [Quick Start](#-quick-start)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Available Tools](#-available-tools)
+- [Usage Examples](#-usage-examples)
+- [Data Sources](#-data-sources)
+- [Deployment](#-deployment)
+- [Development](#-development)
+- [API Keys](#-api-keys)
+- [Troubleshooting](#-troubleshooting)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ## ✨ Features
 
@@ -125,7 +125,7 @@ npm install -g morocco-open-data-mcp
 
 ### From Source
 ```bash
-git clone https://github.com/your-org/morocco-open-data-mcp.git
+git clone https://github.com/kcbdev/morocco-open-data-mcp.git
 cd morocco-open-data-mcp
 npm install
 npm run build
@@ -139,8 +139,9 @@ docker build -t morocco-open-data-mcp .
 # Run the container
 docker run -d \
   --name morocco-mcp \
+  -e MCP_TRANSPORT=http \
+  -e MCP_PORT=3000 \
   -e BAM_KEY_CHANGES=your_key \
-  -e BAM_KEY_OBLIGATIONS=your_key \
   morocco-open-data-mcp
 ```
 
@@ -162,6 +163,9 @@ docker-compose logs -f
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `MCP_TRANSPORT` | Transport mode: `stdio` or `http` | `auto` |
+| `MCP_PORT` | HTTP server port (when using HTTP transport) | `3000` |
+| `MCP_HOST` | HTTP server host | `0.0.0.0` |
 | `BAM_KEY_CHANGES` | Bank Al-Maghrib API key for exchange rates | Required for BAM data |
 | `BAM_KEY_OBLIGATIONS` | BAM API key for government obligations | Required for obligations |
 | `BAM_KEY_TBILLS` | BAM API key for treasury bills | Required for T-bills |
@@ -178,20 +182,48 @@ docker-compose logs -f
 
 Add to your `claude_desktop_config.json`:
 
-**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`  
+**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`  
 **Linux:** `~/.config/Claude/claude_desktop_config.json`
 
+#### For Local Development (stdio transport):
 ```json
 {
   "mcpServers": {
     "morocco-open-data": {
       "command": "node",
-      "args": ["/path/to/morocco-open-data-mcp/dist/index.js"],
+      "args": ["/home/kcb/Work/LABS/MOPD/MoroccoOpenData MCP/dist/index.js"],
       "env": {
         "BAM_KEY_CHANGES": "your_key_here",
         "BAM_KEY_OBLIGATIONS": "your_key_here",
         "BAM_KEY_TBILLS": "your_key_here"
+      }
+    }
+  }
+}
+```
+
+#### For Remote Server (HTTP SSE transport):
+```json
+{
+  "mcpServers": {
+    "morocco-open-data": {
+      "url": "https://morocco-opendata-mcp.kcb.ma",
+      "transportType": "sse"
+    }
+  }
+}
+```
+
+#### Using mcp-remote:
+```json
+{
+  "mcpServers": {
+    "morocco-open-data": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote@latest"],
+      "env": {
+        "MCP_SERVER_URL": "https://morocco-opendata-mcp.kcb.ma/sse"
       }
     }
   }
@@ -341,6 +373,8 @@ docker run -d \
   --name morocco-mcp \
   --restart unless-stopped \
   -e NODE_ENV=production \
+  -e MCP_TRANSPORT=http \
+  -e MCP_PORT=3000 \
   -e BAM_KEY_CHANGES=your_key \
   -e BAM_KEY_OBLIGATIONS=your_key \
   -e BAM_KEY_TBILLS=your_key \
@@ -354,6 +388,25 @@ docker run -d \
 docker logs -f morocco-mcp
 docker stats morocco-mcp
 ```
+
+### Coolify Deployment
+
+For deployment on Coolify (https://coolify.kcb.ma):
+
+1. **Create new resource from Git repository**
+2. **Repository:** https://github.com/kcbdev/morocco-open-data-mcp
+3. **Branch:** main
+4. **Domain:** morocco-opendata-mcp.kcb.ma
+5. **Environment Variables:**
+   ```
+   MCP_TRANSPORT=http
+   MCP_PORT=3000
+   MCP_HOST=0.0.0.0
+   NODE_ENV=production
+   BAM_KEY_CHANGES=your_key
+   BAM_KEY_OBLIGATIONS=your_key
+   BAM_KEY_TBILLS=your_key
+   ```
 
 ### Kubernetes Deployment (Optional)
 
@@ -374,10 +427,12 @@ spec:
     spec:
       containers:
       - name: mcp-server
-        image: morocco-open-data-mcp:latest
+        image: ghcr.io/kcbdev/morocco-open-data-mcp:latest
         env:
         - name: NODE_ENV
           value: "production"
+        - name: MCP_TRANSPORT
+          value: "http"
         - name: BAM_KEY_CHANGES
           valueFrom:
             secretKeyRef:
@@ -407,7 +462,6 @@ morocco-open-data-mcp/
 │   │   ├── geo.ts        # Geography/GIS client
 │   │   ├── hdx.ts        # Humanitarian Data Exchange client
 │   │   └── weather.ts    # Weather API client
-│   ├── tools/            # MCP tool implementations
 │   ├── lib/              # Core utilities
 │   │   ├── cache.ts      # Caching layer
 │   │   ├── rateLimiter.ts # Rate limiting
@@ -420,6 +474,7 @@ morocco-open-data-mcp/
 ├── tsconfig.json
 ├── Dockerfile
 ├── docker-compose.yml
+├── claude_desktop_config.json
 └── README.md
 ```
 
@@ -463,7 +518,7 @@ npx tsx src/test.ts
 ### Required API Keys
 
 #### Bank Al-Maghrib (BAM)
-- **Registration:** Visit [Bank Al-Maghrib](https://www.bkam.ma) and request API access
+- **Registration:** Visit [Bank Al-Maghrib](https://www.bkam.ma/en/Statistical-Data) and request API access
 - **Endpoints:** Exchange rates, treasury bills, government obligations
 - **Rate Limits:** 30 requests/minute
 
@@ -472,7 +527,7 @@ npx tsx src/test.ts
 - **Free tier:** 60 requests/minute
 - **Documentation:** [World Bank API Docs](https://datahelpdesk.worldbank.org/knowledgebase/topics/125589)
 
-#### Optional API Keys
+### Optional API Keys
 
 | Service | Purpose | Registration |
 |---------|---------|--------------|
@@ -506,6 +561,11 @@ npm run build
 - Check Claude Desktop logs
 - Restart Claude Desktop after config changes
 
+#### 5. SSE Connection Failed
+- Ensure `MCP_TRANSPORT=http` is set in environment variables
+- Verify the server is running in HTTP mode
+- Check firewall allows connections to port 3000
+
 ### Debug Mode
 
 Enable verbose logging:
@@ -516,10 +576,12 @@ NODE_ENV=development DEBUG=* npm run dev
 ### Health Checks
 
 ```bash
-# Check if server is running
+# Check if server is running (HTTP mode)
+curl https://morocco-opendata-mcp.kcb.ma/health
+
+# Check if server is running (local stdio mode)
 node -e "console.log('MCP server healthy')"
 
-# Check API availability
 # The server will log status of all data sources on startup
 ```
 
@@ -529,7 +591,7 @@ We welcome contributions! Please follow these guidelines:
 
 ### Getting Started
 
-1. Fork the repository
+1. Fork the repository: https://github.com/kcbdev/morocco-open-data-mcp
 2. Create a feature branch: `git checkout -b feature/your-feature`
 3. Make your changes
 4. Run tests: `npm test`
@@ -557,37 +619,25 @@ We welcome contributions! Please follow these guidelines:
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License** (CC BY-NC 4.0).
 
-```
-MIT License
+See the [LICENSE](LICENSE) file for details.
 
-Copyright (c) 2024 Morocco Open Data Initiative
+### What This Means:
+- ✅ **You CAN:** Share, copy, redistribute, adapt, and build upon this material
+- ✅ **You MUST:** Give appropriate credit, provide a link to the license, and indicate if changes were made
+- ❌ **You CANNOT:** Use this material for commercial purposes
+- ❌ **You CANNOT:** Apply legal terms or technological measures that restrict others from doing anything the license permits
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+For commercial licensing inquiries, contact: oss@kcb.ma
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+---
 
 ## 📞 Support
 
-- **Issues:** [GitHub Issues](https://github.com/your-org/morocco-open-data-mcp/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/your-org/morocco-open-data-mcp/discussions)
-- **Email:** info@morocco-opendata.ma (placeholder)
+- **Issues:** [GitHub Issues](https://github.com/kcbdev/morocco-open-data-mcp/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/kcbdev/morocco-open-data-mcp/discussions)
+- **Email:** oss@kcb.ma
 
 ## 🙏 Acknowledgments
 
@@ -601,3 +651,7 @@ SOFTWARE.
 ---
 
 Built with ❤️ for Morocco's open data community
+
+**Morocco Open Data MCP Server v1.0.0**  
+**Live Deployment:** https://morocco-opendata-mcp.kcb.ma  
+**Source Code:** https://github.com/kcbdev/morocco-open-data-mcp
